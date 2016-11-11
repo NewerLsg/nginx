@@ -245,10 +245,12 @@ main(int argc, char *const *argv)
         return 1;
     }
 
+	//保存参数
     if (ngx_save_argv(&init_cycle, argc, argv) != NGX_OK) {
         return 1;
     }
 
+	//处理参数
     if (ngx_process_options(&init_cycle) != NGX_OK) {
         return 1;
     }
