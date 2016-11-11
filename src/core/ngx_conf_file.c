@@ -69,6 +69,7 @@ ngx_conf_param(ngx_conf_t *cf)
 
     param = &cf->cycle->conf_param;
 
+	//如果没有配置-g对应的参数，这里直接返回
     if (param->len == 0) {
         return NGX_CONF_OK;
     }

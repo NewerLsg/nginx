@@ -409,7 +409,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
             }
 
 #if (NGX_HAVE_REUSEPORT)
-
+			//当前端口需要复用,下面说的很清楚了针对于原来不是SO_REUSEPORT的端口
             if (ls[i].add_reuseport) {
 
                 /*
@@ -429,10 +429,10 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                                   &ls[i].addr_text);
                 }
 
-                ls[i].add_reuseport = 0;
+                ls[i].add_reuseport = 0; //外层两个for,设置过一次就在后面就不需要处理
             }
 #endif
-
+			//套接字已经被初始化，则处理下一个否则新创建一个套接字
             if (ls[i].fd != (ngx_socket_t) -1) {
                 continue;
             }
@@ -515,7 +515,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
             }
 #endif
             /* TODO: close on exit */
-
+			//设置套接字为非阻塞
             if (!(ngx_event_flags & NGX_USE_IOCP_EVENT)) {
                 if (ngx_nonblocking(s) == -1) {
                     ngx_log_error(NGX_LOG_EMERG, log, ngx_socket_errno,
@@ -582,12 +582,13 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 }
             }
 #endif
-
+			//SOCK_STREAM不是数据流协议则不监听端口?
             if (ls[i].type != SOCK_STREAM) {
                 ls[i].fd = s;
                 continue;
             }
 
+			//监听端口
             if (listen(s, ls[i].backlog) == -1) {
                 err = ngx_socket_errno;
 

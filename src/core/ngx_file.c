@@ -604,6 +604,7 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
     path = cycle->paths.elts;
     for (i = 0; i < cycle->paths.nelts; i++) {
 
+		//access参数仅仅对mkdir接口有用
         if (ngx_create_dir(path[i]->name.data, 0700) == NGX_FILE_ERROR) {
             err = ngx_errno;
             if (err != NGX_EEXIST) {
@@ -618,6 +619,7 @@ ngx_create_paths(ngx_cycle_t *cycle, ngx_uid_t user)
             continue;
         }
 
+	//如果不是win，检查文件用户以及权限，更改文件从属用户权限
 #if !(NGX_WIN32)
         {
         ngx_file_info_t   fi;

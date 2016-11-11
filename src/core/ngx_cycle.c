@@ -124,7 +124,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->paths.nalloc = n;
     cycle->paths.pool = pool;
 
-
+	//启动参数带T,需要dump出配置信息
     if (ngx_array_init(&cycle->config_dump, pool, 1, sizeof(ngx_conf_dump_t))
         != NGX_OK)
     {
@@ -132,9 +132,12 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
+	//这里怎么多了一个红黑树? unclear
     ngx_rbtree_init(&cycle->config_dump_rbtree, &cycle->config_dump_sentinel,
                     ngx_str_rbtree_insert_value);
 
+	//这里地方首先分配n个文件结构需要的内存单元以备使用
+	//额外:在nginx中有许多这样的概念:预分配以及回收再使用，减少系统调用时间
     if (old_cycle->open_files.part.nelts) {
         n = old_cycle->open_files.part.nelts;
         for (part = old_cycle->open_files.part.next; part; part = part->next) {
@@ -152,7 +155,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
-
+	//同上，分配共享内存
     if (old_cycle->shared_memory.part.nelts) {
         n = old_cycle->shared_memory.part.nelts;
         for (part = old_cycle->shared_memory.part.next; part; part = part->next)
@@ -171,6 +174,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
+	//同上，监听端口
     n = old_cycle->listening.nelts ? old_cycle->listening.nelts : 10;
 
     cycle->listening.elts = ngx_pcalloc(pool, n * sizeof(ngx_listening_t));
@@ -215,12 +219,14 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     ngx_strlow(cycle->hostname.data, (u_char *) hostname, cycle->hostname.len);
 
 
+	//1.9的版本直接使用的是ngx_modules而不是cycle->modules(之前的cycle没有modules的成员)
+	//ngx_modules 在哪里被初始化了 unclear
     if (ngx_cycle_modules(cycle) != NGX_OK) {
         ngx_destroy_pool(pool);
         return NULL;
     }
 
-
+	
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->type != NGX_CORE_MODULE) {
             continue;
@@ -242,6 +248,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     senv = environ;
 
 
+	//conf起到什么作用? unclear
     ngx_memzero(&conf, sizeof(ngx_conf_t));
     /* STUB: init array ? */
     conf.args = ngx_array_create(pool, 10, sizeof(ngx_str_t));
@@ -268,23 +275,30 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     log->log_level = NGX_LOG_DEBUG_ALL;
 #endif
 
+	//启动参数带-g说明配置了全局配置项，在这一步被处理
+	//nginx将分配一个buffer用于读取配置文件，在ngx_conf_param中先将全局配置写入这个buffer，
+	//所以尽管在ngx_conf_param中调用ngx_conf_parse，但是第二个参数是NULL，所以仅仅解析了buffer里面的内容
     if (ngx_conf_param(&conf) != NGX_CONF_OK) {
         environ = senv;
         ngx_destroy_cycle_pools(&conf);
         return NULL;
     }
 
+	//这里是分析配置文件中的配置
+	//有一个问题:这一步不会覆盖掉上一步中的设置? unclear
     if (ngx_conf_parse(&conf, &cycle->conf_file) != NGX_CONF_OK) {
         environ = senv;
         ngx_destroy_cycle_pools(&conf);
         return NULL;
     }
 
+	//-t选项:检测配置文件通过后就输出
     if (ngx_test_config && !ngx_quiet_mode) {
         ngx_log_stderr(0, "the configuration file %s syntax is ok",
                        cycle->conf_file.data);
     }
 
+	//初始化所有核心模块配置 unclear
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->type != NGX_CORE_MODULE) {
             continue;
@@ -304,6 +318,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         }
     }
 
+	//如过进程启动带-s选项，表明向正在运行进程发送信号不再向后进行，退出ngx_init_cycle
     if (ngx_process == NGX_PROCESS_SIGNALLER) {
         return cycle;
     }
@@ -338,12 +353,13 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         }
     }
 
-
+	//这里面还是蛮奇怪的,执行了三个操作,创建or打开、close、unlink文件
     if (ngx_test_lockfile(cycle->lock_file.data, log) != NGX_OK) {
         goto failed;
     }
 
-
+	//创建文件路径，里面区分的win版本和uinx版本的接口
+	//这一步是在win下，仅仅就创建了文件夹而已
     if (ngx_create_paths(cycle, ccf->user) != NGX_OK) {
         goto failed;
     }
@@ -358,6 +374,8 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     part = &cycle->open_files.part;
     file = part->elts;
 
+	//这里按一般的写法会需要两层循环。一层遍历part，一层遍历part->elts
+	//这里会提升处理效率么? unclear
     for (i = 0; /* void */ ; i++) {
 
         if (i >= part->nelts) {
@@ -390,6 +408,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         }
 
 #if !(NGX_WIN32)
+		//close on exec
         if (fcntl(file[i].fd, F_SETFD, FD_CLOEXEC) == -1) {
             ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                           "fcntl(FD_CLOEXEC) \"%s\" failed",
@@ -431,6 +450,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         opart = &old_cycle->shared_memory.part;
         oshm_zone = opart->elts;
 
+		//优先利用之前已经创建的共享内存
         for (n = 0; /* void */ ; n++) {
 
             if (n >= opart->nelts) {
@@ -471,7 +491,10 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
 
                 goto shm_zone_found;
             }
-
+			
+			//到了这一步说明找到了，但是大小、tag不匹配或者没有被使用过
+			//至于为什么退出循环，因为共享内存的标志的唯一的，既然找到了
+			//在原来的共享内存链表就不可能在有匹配的项了
             ngx_shm_free(&oshm_zone[n].shm);
 
             break;
@@ -511,6 +534,9 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
                     continue;
                 }
 
+				//remain有两个作用
+				//1.保证之后该套接字不被关闭;
+				//2.已经与新的一个套接字匹配，后续不再利用这个套接字对比
                 if (ls[i].remain) {
                     continue;
                 }
@@ -525,7 +551,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
                 {
                     nls[n].fd = ls[i].fd;
                     nls[n].previous = &ls[i];
-                    ls[i].remain = 1;
+                    ls[i].remain = 1;  //表示匹配了一个套接字,至于是重用还需看后面进一步对比
 
                     if (ls[i].backlog != nls[n].backlog) {
                         nls[n].listen = 1;
@@ -537,6 +563,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
                      * FreeBSD, except the most recent versions,
                      * could not remove accept filter
                      */
+                    //unclear
                     nls[n].deferred_accept = ls[i].deferred_accept;
 
                     if (ls[i].accept_filter && nls[n].accept_filter) {
@@ -561,8 +588,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
                     if (ls[i].deferred_accept && !nls[n].deferred_accept) {
                         nls[n].delete_deferred = 1;
 
-                    } else if (ls[i].deferred_accept != nls[n].deferred_accept)
-                    {
+                    } else if (ls[i].deferred_accept != nls[n].deferred_accept) {
                         nls[n].add_deferred = 1;
                     }
 #endif

@@ -17,17 +17,17 @@ typedef struct ngx_list_part_s  ngx_list_part_t;
 
 struct ngx_list_part_s {
     void             *elts;
-    ngx_uint_t        nelts;
+    ngx_uint_t        nelts; //elts元素的个数
     ngx_list_part_t  *next;
 };
 
 
 typedef struct {
     ngx_list_part_t  *last;
-    ngx_list_part_t   part;
+    ngx_list_part_t   part; //头结点
     size_t            size;
     ngx_uint_t        nalloc;
-    ngx_pool_t       *pool;
+    ngx_pool_t       *pool; //为啥需要pool,如果需要新的节点，则需要pool进行分配
 } ngx_list_t;
 
 
