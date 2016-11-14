@@ -137,10 +137,12 @@ ngx_event_accept(ngx_event_t *ev)
 #if (NGX_STAT_STUB)
         (void) ngx_atomic_fetch_add(ngx_stat_accepted, 1);
 #endif
-
+		//更新ngx_accept_disabled，当剩余连接数小于1/8的总连接数
+		//则ngx_accept_disabled > 0,该进程获取连接优先级降低
         ngx_accept_disabled = ngx_cycle->connection_n / 8
                               - ngx_cycle->free_connection_n;
 
+		//从连接池获取一个连接对象
         c = ngx_get_connection(s, ev->log);
 
         if (c == NULL) {
@@ -152,12 +154,14 @@ ngx_event_accept(ngx_event_t *ev)
             return;
         }
 
-        c->type = SOCK_STREAM;
+		//直接置数据流协议
+		c->type = SOCK_STREAM;
 
 #if (NGX_STAT_STUB)
         (void) ngx_atomic_fetch_add(ngx_stat_active, 1);
 #endif
-
+		//为连接创建一个内存池
+		//该内存池为连接的整个生命周期，连接关闭就释放
         c->pool = ngx_create_pool(ls->pool_size, ev->log);
         if (c->pool == NULL) {
             ngx_close_accepted_connection(c);

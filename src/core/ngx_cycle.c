@@ -220,13 +220,16 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
 
 
 	//1.9的版本直接使用的是ngx_modules而不是cycle->modules(之前的cycle没有modules的成员)
-	//ngx_modules 在哪里被初始化了 unclear
-    if (ngx_cycle_modules(cycle) != NGX_OK) {
+	//ngx_modules 在哪里被初始化了 
+	//使用configure自动生成ngx_modules.c并在编译生成ngx_modules.o
+	//核心模块有一个load_module的方法方法中会初始化这个数组
+	//下面完成将全局ngx_modules复制到cycle->module
+	if (ngx_cycle_modules(cycle) != NGX_OK) {
         ngx_destroy_pool(pool);
         return NULL;
     }
 
-	
+	//在此处初始化NGX_CORE_MODULE
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->type != NGX_CORE_MODULE) {
             continue;
@@ -249,6 +252,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
 
 
 	//conf起到什么作用? unclear
+	//解析配置文件时需要这样一个结构
     ngx_memzero(&conf, sizeof(ngx_conf_t));
     /* STUB: init array ? */
     conf.args = ngx_array_create(pool, 10, sizeof(ngx_str_t));
@@ -299,6 +303,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     }
 
 	//初始化所有核心模块配置 unclear
+	//在前面已经获取了所有模块
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->type != NGX_CORE_MODULE) {
             continue;
