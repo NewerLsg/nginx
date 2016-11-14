@@ -1,0 +1,18 @@
+---- ngx_event_actions Matches (17 in 10 files) ----
+Ngx_devpoll_module.c (event\modules):    ngx_event_actions = ngx_devpoll_module_ctx.actions;
+Ngx_epoll_module.c (event\modules):    ngx_event_actions = ngx_epoll_module_ctx.actions;
+Ngx_event.c (event):ngx_event_actions_t   ngx_event_actions;
+Ngx_event.h (event):extern ngx_event_actions_t   ngx_event_actions;
+Ngx_event.h (event):#define ngx_process_events   ngx_event_actions.process_events
+Ngx_event.h (event):#define ngx_done_events      ngx_event_actions.done
+Ngx_event.h (event):#define ngx_add_event        ngx_event_actions.add
+Ngx_event.h (event):#define ngx_del_event        ngx_event_actions.del
+Ngx_event.h (event):#define ngx_add_conn         ngx_event_actions.add_conn
+Ngx_event.h (event):#define ngx_del_conn         ngx_event_actions.del_conn
+Ngx_event.h (event):#define ngx_notify           ngx_event_actions.notify
+Ngx_eventport_module.c (event\modules):    ngx_event_actions = ngx_eventport_module_ctx.actions;
+Ngx_iocp_module.c (event\modules):    ngx_event_actions = ngx_iocp_module_ctx.actions;
+Ngx_kqueue_module.c (event\modules):    ngx_event_actions = ngx_kqueue_module_ctx.actions;
+Ngx_poll_module.c (event\modules):    ngx_event_actions = ngx_poll_module_ctx.actions;
+Ngx_select_module.c (event\modules):    ngx_event_actions = ngx_select_module_ctx.actions;
+Ngx_win32_select_module.c (event\modules):    ngx_event_actions = ngx_select_module_ctx.actions;

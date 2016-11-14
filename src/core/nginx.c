@@ -349,6 +349,8 @@ main(int argc, char *const *argv)
         return 1;
     }
 
+	//这里就是为什么在daemon里面不重定位标准错误了
+	//它将标准错误定位到日志文件
     if (ngx_log_redirect_stderr(cycle) != NGX_OK) {
         return 1;
     }

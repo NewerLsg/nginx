@@ -28,13 +28,18 @@ ngx_daemon(ngx_log_t *log)
 
     ngx_pid = ngx_getpid();
 
+	//因为是子进程所以必然不是进程组首进程
+	//所以setseid会新建不依赖与终端的会话
+	//不依赖与终端的会话表明不会受到终端中断、退出的影响
     if (setsid() == -1) {
         ngx_log_error(NGX_LOG_EMERG, log, ngx_errno, "setsid() failed");
         return NGX_ERROR;
     }
 
-    umask(0);
+    umask(0); 
 
+	//将标准输入、输出对应到/dev/null 为了能让一些用到
+	//标准输入和输出的调用正常的使用(printf/scanf)
     fd = open("/dev/null", O_RDWR);
     if (fd == -1) {
         ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
