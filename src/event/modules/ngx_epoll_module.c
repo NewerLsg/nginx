@@ -350,6 +350,7 @@ ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
 #endif
     }
 
+	//返回时间少于配置数
     if (nevents < epcf->events) {
         if (event_list) {
             ngx_free(event_list);
@@ -588,6 +589,10 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
 
     events = (uint32_t) event;
 
+	//把同一个事件通过epoll_ctl多次加入到ep中会出错，所以不能简单的调用EPOLL_CTL_ADD
+	//如果是EPOLL_CTL_MOD，则需要保留之前的标志，否则会被清理掉
+	//所以这里如果是新增事件而且套接字上已有监听事件，则认为同时监听读写事件
+	//EPOLLRDHUP-read hup 表明peer关闭了连接
     if (event == NGX_READ_EVENT) {
         e = c->write;
         prev = EPOLLOUT;
@@ -611,12 +616,18 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
         op = EPOLL_CTL_ADD;
     }
 
+	//这里为什么把EPOLLRDHUP这个事件给去掉了? unclear
+	//猜想:NGX_EXCLUSIVE_EVENT标志为了解决epoll的惊群问题,
+	//但是对于关闭连接来说有需要通知所有epoll句柄的
 #if (NGX_HAVE_EPOLLEXCLUSIVE && NGX_HAVE_EPOLLRDHUP)
     if (flags & NGX_EXCLUSIVE_EVENT) {
         events &= ~EPOLLRDHUP;
     }
 #endif
 
+	//这里的flag可以带上EPOLLET等标志
+	//ee.data这个存储的内容可以在epoll_wait返回的事件中获取到
+	//ee.data.prt为什么要把c与ev->instance连接再一起?
     ee.events = events | (uint32_t) flags;
     ee.data.ptr = (void *) ((uintptr_t) c | ev->instance);
 
@@ -691,12 +702,16 @@ ngx_epoll_del_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
         return NGX_ERROR;
     }
 
+	//这里不会有问题么?
+	//先调用ngx_epoll_add_event , EPOLL_CTL_ADD ，ev->active=1
+	//在调用ngx_epoll_del_event, EPOLL_CTL_MOD, ev->active=0
+	//再次调用ngx_epoll_add_event不还是使用了EPOLL_CTL_ADD标志?难道不会出错?(一个文件句柄被添加两次了)
     ev->active = 0;
 
     return NGX_OK;
 }
 
-
+//ngx_epoll_add_connection/ngx_epoll_del_connection这两个接口主要是管理监听端口accept以及nginx作为客户端发出的tcp连接
 static ngx_int_t
 ngx_epoll_add_connection(ngx_connection_t *c)
 {

@@ -266,7 +266,7 @@ ngx_handle_read_event(ngx_event_t *rev, ngx_uint_t flags)
     if (ngx_event_flags & NGX_USE_CLEAR_EVENT) {
 
         /* kqueue, epoll */
-
+		//epoll中NGX_CLEAR_EVENT对应的是EPOLLET
         if (!rev->active && !rev->ready) {
             if (ngx_add_event(rev, NGX_READ_EVENT, NGX_CLEAR_EVENT)
                 == NGX_ERROR)

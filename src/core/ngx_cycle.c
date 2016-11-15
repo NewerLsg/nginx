@@ -695,6 +695,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
                 n = 0;
             }
 
+			//名字与大小以及内容均匹配的情况下会复用原来的共享内存
             if (oshm_zone[i].shm.name.len == shm_zone[n].shm.name.len
                 && ngx_strncmp(oshm_zone[i].shm.name.data,
                                shm_zone[n].shm.name.data,
