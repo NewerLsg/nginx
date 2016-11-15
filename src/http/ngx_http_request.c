@@ -378,7 +378,7 @@ ngx_http_init_connection(ngx_connection_t *c)
     }
 }
 
-
+//调用这个函数说明已经获取到数据了
 static void
 ngx_http_wait_request_handler(ngx_event_t *rev)
 {
@@ -495,7 +495,7 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
 
 		//如果代理字段与last字段在同一个位置，说明还没有读取出来 unclear
 		//但是为什么需要调用ngx_post_event?不能等待下一次的epoll么?而且还变相的把buffer清理了
-        if (b->pos == b->last) {
+		if (b->pos == b->last) {
             c->log->action = "waiting for request";
             b->pos = b->start;
             b->last = b->start;
@@ -506,8 +506,10 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
 
     c->log->action = "reading client request line";
 
+	//请求没有处理完就设置为可重用? unclear
     ngx_reusable_connection(c, 0);
 
+	//创建http请求信息结构
     c->data = ngx_http_create_request(c);
     if (c->data == NULL) {
         ngx_http_close_connection(c);
@@ -986,6 +988,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
                 r->http_protocol.len = r->request_end - r->http_protocol.data;
             }
 
+			//处理uri
             if (ngx_http_process_request_uri(r) != NGX_OK) {
                 return;
             }
