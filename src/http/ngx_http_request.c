@@ -222,6 +222,7 @@ ngx_http_init_connection(ngx_connection_t *c)
 
     port = c->listening->servers;
 
+	//服务器虚拟地址多于1个
     if (port->naddrs > 1) {
 
         /*
@@ -352,6 +353,7 @@ ngx_http_init_connection(ngx_connection_t *c)
         c->log->action = "reading PROXY protocol";
     }
 
+	//对于defer accept的连接，在accpet接收到请求的时候就已经收到数据了，所以这里需要直接对数据处理
     if (rev->ready) {
         /* the deferred accept(), iocp */
 
@@ -364,9 +366,12 @@ ngx_http_init_connection(ngx_connection_t *c)
         return;
     }
 
+	//在超时时间内处理事件 unclear
+	//当由于超时触发事件的handler，则handler内部走超时分支
     ngx_add_timer(rev, c->listening->post_accept_timeout);
     ngx_reusable_connection(c, 1);
 
+	//这里的处理对rev并没有影响? unclear
     if (ngx_handle_read_event(rev, 0) != NGX_OK) {
         ngx_http_close_connection(c);
         return;
@@ -389,6 +394,7 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, c->log, 0, "http wait request handler");
 
+	//定时器超时触发
     if (rev->timedout) {
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
         ngx_http_close_connection(c);
@@ -407,6 +413,8 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
 
     b = c->buffer;
 
+	//什么情况会导致b = NULL?
+	//在n == NGX_AGAIN的时候被释放了,空闲的连接并不维护buffer
     if (b == NULL) {
         b = ngx_create_temp_buf(c->pool, size);
         if (b == NULL) {
@@ -429,10 +437,14 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
         b->end = b->last + size;
     }
 
+	//调用ngx_io.recv函数读取数据
+	//调用系统底层的读取数据与对应事件的handler是相关联的
+	//但事件不需要知道怎么去获取数据
     n = c->recv(c, b->last, size);
 
     if (n == NGX_AGAIN) {
 
+		//没有设置超时则设置
         if (!rev->timer_set) {
             ngx_add_timer(rev, c->listening->post_accept_timeout);
             ngx_reusable_connection(c, 1);
@@ -467,7 +479,8 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
     }
 
     b->last += n;
-
+	
+	//这里需要弄清楚代理是什么作用，为分析整个流程先假设此分支条件不存在 unclear
     if (hc->proxy_protocol) {
         hc->proxy_protocol = 0;
 
@@ -480,6 +493,8 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
 
         b->pos = p;
 
+		//如果代理字段与last字段在同一个位置，说明还没有读取出来 unclear
+		//但是为什么需要调用ngx_post_event?不能等待下一次的epoll么?而且还变相的把buffer清理了
         if (b->pos == b->last) {
             c->log->action = "waiting for request";
             b->pos = b->start;
@@ -499,6 +514,7 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
         return;
     }
 
+	//下一步处理请求行
     rev->handler = ngx_http_process_request_line;
     ngx_http_process_request_line(rev);
 }
@@ -941,6 +957,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
     for ( ;; ) {
 
         if (rc == NGX_AGAIN) {
+			//读取请求行
             n = ngx_http_read_request_header(r);
 
             if (n == NGX_AGAIN || n == NGX_ERROR) {
@@ -948,6 +965,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
             }
         }
 
+		//处理请求行 类似于这种 GET http://hostname.com/a/b/c.js
         rc = ngx_http_parse_request_line(r, r->header_in);
 
         if (rc == NGX_OK) {
@@ -1215,6 +1233,7 @@ ngx_http_process_request_headers(ngx_event_t *rev)
 
         if (rc == NGX_AGAIN) {
 
+			//缓冲区不够，扩充
             if (r->header_in->pos == r->header_in->end) {
 
                 rv = ngx_http_alloc_large_header_buffer(r, 0);
@@ -1376,9 +1395,10 @@ ngx_http_read_request_header(ngx_http_request_t *r)
 
     c = r->connection;
     rev = c->read;
-
+	
     n = r->header_in->last - r->header_in->pos;
 
+	//检测缓冲区大小
     if (n > 0) {
         return n;
     }

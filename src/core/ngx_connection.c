@@ -1066,6 +1066,10 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
         ngx_cycle->files[s] = c;
     }
 
+	//为什么要将旧的read和write句柄保留?
+	//这里的read并不是句柄，而是代表事件的结构
+	//connection和rev/wev是被cycle预分配(ngx_event_process_init)，
+	//是一一对应的关系，这里保持这种关系
     rev = c->read;
     wev = c->write;
 
@@ -1078,6 +1082,7 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
 
     instance = rev->instance;
 
+	//对事件结构清空，表明handler已经被擦除
     ngx_memzero(rev, sizeof(ngx_event_t));
     ngx_memzero(wev, sizeof(ngx_event_t));
 

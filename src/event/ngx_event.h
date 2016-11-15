@@ -26,9 +26,9 @@ typedef struct {
 
 #endif
 
-
+//在事件结构里面基本上是标志位，其他重要成员有:data、handler、log
 struct ngx_event_s {
-    void            *data;
+    void            *data; //data通常指向的是一个connection，在ngx_get_connection中初始化
 
     unsigned         write:1;
 
@@ -37,6 +37,7 @@ struct ngx_event_s {
     /* used to detect the stale events in kqueue and epoll */
     unsigned         instance:1;
 
+	//aio是指asynchronization io-异步io接口
     /*
      * the event was passed or would be passed to a kernel;
      * in aio mode - operation was posted.

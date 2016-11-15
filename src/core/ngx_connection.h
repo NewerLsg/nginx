@@ -117,9 +117,13 @@ typedef enum {
 #define NGX_SSL_BUFFERED       0x01
 #define NGX_HTTP_V2_BUFFERED   0x02
 
-
+//ngxin有一个连接对象池，以下为其结构
+//在cycle结构中，data也充当了next指针的角色
+//当connection分配到具体的连接时，就不再是next了。例如分配给http的连接
+//则data指向一个ngx_http_connection_t结构的指针，而且这个data也随处理不断的变化
 struct ngx_connection_s {
     void               *data;
+	//这两个事件均对应了cycle结构中相同下标的事件结构，在ngx_event_process_init中被初始化
     ngx_event_t        *read;
     ngx_event_t        *write;
 
@@ -130,7 +134,7 @@ struct ngx_connection_s {
     ngx_recv_chain_pt   recv_chain;
     ngx_send_chain_pt   send_chain;
 
-    ngx_listening_t    *listening;
+    ngx_listening_t    *listening; 
 
     off_t               sent;
 

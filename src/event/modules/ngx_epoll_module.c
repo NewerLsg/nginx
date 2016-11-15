@@ -350,6 +350,7 @@ ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
 #endif
     }
 
+	//返回时间少于配置数
     if (nevents < epcf->events) {
         if (event_list) {
             ngx_free(event_list);
@@ -574,7 +575,8 @@ ngx_epoll_done(ngx_cycle_t *cycle)
     nevents = 0;
 }
 
-
+//ngx_epoll_add_event是为ev新增加一个监听类型。
+//如果是通过accept获取的客户端连接则直接调用ngx_epoll_add_connection监听套接字的所有事件类型
 static ngx_int_t
 ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
 {
@@ -588,6 +590,10 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
 
     events = (uint32_t) event;
 
+	//把同一个事件通过epoll_ctl多次加入到ep中会出错，所以不能简单的调用EPOLL_CTL_ADD
+	//如果是EPOLL_CTL_MOD，则需要保留之前的标志，否则会被清理掉
+	//所以这里如果是新增事件而且套接字上已有监听事件，则认为同时监听读写事件
+	//EPOLLRDHUP-read hup 表明peer关闭了连接
     if (event == NGX_READ_EVENT) {
         e = c->write;
         prev = EPOLLOUT;
@@ -611,12 +617,18 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
         op = EPOLL_CTL_ADD;
     }
 
+	//这里为什么把EPOLLRDHUP这个事件给去掉了? unclear
+	//猜想:NGX_EXCLUSIVE_EVENT标志为了解决epoll的惊群问题,
+	//但是对于关闭连接来说有需要通知所有epoll句柄的
 #if (NGX_HAVE_EPOLLEXCLUSIVE && NGX_HAVE_EPOLLRDHUP)
     if (flags & NGX_EXCLUSIVE_EVENT) {
         events &= ~EPOLLRDHUP;
     }
 #endif
 
+	//这里的flag可以带上EPOLLET等标志
+	//ee.data这个存储的内容可以在epoll_wait返回的事件中获取到
+	//ee.data.prt为什么要把c与ev->instance连接再一起?
     ee.events = events | (uint32_t) flags;
     ee.data.ptr = (void *) ((uintptr_t) c | ev->instance);
 
@@ -691,11 +703,15 @@ ngx_epoll_del_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
         return NGX_ERROR;
     }
 
-    ev->active = 0;
+	//这里不会有问题么? unclear
+	//先调用ngx_epoll_add_event , EPOLL_CTL_ADD ，ev->active=1
+	//在调用ngx_epoll_del_event, EPOLL_CTL_MOD, ev->active=0
+	//再次调用ngx_epoll_add_event不还是使用了EPOLL_CTL_ADD标志?难道不会出错?(一个文件句柄被添加两次了)
+	//还是说处理过程中不会出现这样的调用顺序?
+	ev->active = 0;
 
     return NGX_OK;
 }
-
 
 static ngx_int_t
 ngx_epoll_add_connection(ngx_connection_t *c)
@@ -727,6 +743,9 @@ ngx_epoll_del_connection(ngx_connection_t *c, ngx_uint_t flags)
     int                 op;
     struct epoll_event  ee;
 
+	//这里说的是文件描述符关闭后epoll会自动从监听队列中删除对事件的监听
+	//但是这个地方确有一个隐含的条件，也就是该文件描述符不应该有类似dup2这样的操作
+	//因为这样会使文件引用数大于1导致不会被删除，active=0只能保证唤醒后不再处理事件
     /*
      * when the file descriptor is closed the epoll automatically deletes
      * it from its queue so we do not need to delete explicitly the event

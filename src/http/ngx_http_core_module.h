@@ -144,6 +144,7 @@ typedef struct {
 } ngx_http_phase_t;
 
 
+//phase_engine与phases究竟是什么关系?
 typedef struct {
     ngx_array_t                servers;         /* ngx_http_core_srv_conf_t */
 
@@ -168,6 +169,7 @@ typedef struct {
 
     ngx_uint_t                 try_files;       /* unsigned  try_files:1 */
 
+	//每一个阶段对应了一组handlers
     ngx_http_phase_t           phases[NGX_HTTP_LOG_PHASE + 1];
 } ngx_http_core_main_conf_t;
 
