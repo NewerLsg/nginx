@@ -310,7 +310,10 @@ ngx_event_accept(ngx_event_t *ev)
         log->data = NULL;
         log->handler = NULL;
 
-        ls->handler(c);
+		//listenning handler究竟在哪儿被设置了? 
+		//各个模块都会定义自己需要监听的端口比如http、mail等
+		//在模块初始化配置的时候就会对listening进行相关设置，其中就包括handler
+        ls->handler(c); 
 
         if (ngx_event_flags & NGX_USE_KQUEUE_EVENT) {
             ev->available--;

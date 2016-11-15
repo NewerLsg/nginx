@@ -296,7 +296,9 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-
+	//调用HTTP相关的所有模块的postconfiguration，
+	//在postconfiguration中会将模块内部的handler插入到ngx_http_init_phases初始化的phase数组中
+	//后续对handler的处理在ngx_http_init_phase_handlers中
     for (m = 0; cf->cycle->modules[m]; m++) {
         if (cf->cycle->modules[m]->type != NGX_HTTP_MODULE) {
             continue;
@@ -330,6 +332,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     /* optimize the lists of ports, addresses and server names */
 
+	//监听端口在这里被初始化
     if (ngx_http_optimize_servers(cf, cmcf, cmcf->ports) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
@@ -440,7 +443,7 @@ ngx_http_init_headers_in_hash(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
     return NGX_OK;
 }
 
-
+//初始化http处理的各个阶段句柄
 static ngx_int_t
 ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 {
@@ -459,6 +462,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
     n = use_rewrite + use_access + cmcf->try_files + 1 /* find config phase */;
 
+	//统计所有模块中的所有handler
     for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
         n += cmcf->phases[i].handlers.nelts;
     }
@@ -472,11 +476,13 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
     cmcf->phase_engine.handlers = ph;
     n = 0;
 
+	//这一段对应关系是什么意思? unclear
     for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
         h = cmcf->phases[i].handlers.elts;
 
         switch (i) {
-
+		//每个阶段只会处理一次，而且它们是有顺序的
+		//每个checker都会调用对应的handler，没有就不调用。
         case NGX_HTTP_SERVER_REWRITE_PHASE:
             if (cmcf->phase_engine.server_rewrite_index == (ngx_uint_t) -1) {
                 cmcf->phase_engine.server_rewrite_index = n;
@@ -485,6 +491,9 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
             break;
 
+		//这一个阶段没有对应的handler和next?
+		//查找全局也没有发现有那个模块有这个阶段的handler
+		//像这样的分支都存在h=NULL的情况，不在适合后面的处理，因为nelts是为0的
         case NGX_HTTP_FIND_CONFIG_PHASE:
             find_config_index = n;
 
@@ -502,6 +511,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
             break;
 
+		//同NGX_HTTP_FIND_CONFIG_PHASE，但是这个有next指针
         case NGX_HTTP_POST_REWRITE_PHASE:
             if (use_rewrite) {
                 ph->checker = ngx_http_core_post_rewrite_phase;
@@ -517,6 +527,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
             n++;
             break;
 
+		//同上，但是有next
         case NGX_HTTP_POST_ACCESS_PHASE:
             if (use_access) {
                 ph->checker = ngx_http_core_post_access_phase;
@@ -525,7 +536,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
             }
 
             continue;
-
+		//同上，没有next
         case NGX_HTTP_TRY_FILES_PHASE:
             if (cmcf->try_files) {
                 ph->checker = ngx_http_core_try_files_phase;
@@ -1716,7 +1727,7 @@ ngx_http_add_listening(ngx_conf_t *cf, ngx_http_conf_addr_t *addr)
 
     cscf = addr->default_server;
     ls->pool_size = cscf->connection_pool_size;
-    ls->post_accept_timeout = cscf->client_header_timeout;
+    ls->post_accept_timeout = cscf->clien··t_header_timeout;
 
     clcf = cscf->ctx->loc_conf[ngx_http_core_module.ctx_index];
 

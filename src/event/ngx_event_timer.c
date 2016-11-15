@@ -89,6 +89,10 @@ ngx_event_expire_timers(void)
 
         ev->timer_set = 0;
 
+		//先置超时，然后调用的顺序很重要
+		//对于http有超时需求的请求而言，它可以加入到定时器事件中
+		//则事件的handler有两种情况被调用
+		//一是epoll触发，一是定时器超时触发，处理的时候需根据timeout区分
         ev->timedout = 1;
 
         ev->handler(ev);

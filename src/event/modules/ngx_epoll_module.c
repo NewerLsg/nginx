@@ -575,7 +575,8 @@ ngx_epoll_done(ngx_cycle_t *cycle)
     nevents = 0;
 }
 
-
+//ngx_epoll_add_event是为ev新增加一个监听类型。
+//如果是通过accept获取的客户端连接则直接调用ngx_epoll_add_connection监听套接字的所有事件类型
 static ngx_int_t
 ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
 {
@@ -702,16 +703,16 @@ ngx_epoll_del_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
         return NGX_ERROR;
     }
 
-	//这里不会有问题么?
+	//这里不会有问题么? unclear
 	//先调用ngx_epoll_add_event , EPOLL_CTL_ADD ，ev->active=1
 	//在调用ngx_epoll_del_event, EPOLL_CTL_MOD, ev->active=0
 	//再次调用ngx_epoll_add_event不还是使用了EPOLL_CTL_ADD标志?难道不会出错?(一个文件句柄被添加两次了)
-    ev->active = 0;
+	//还是说处理过程中不会出现这样的调用顺序?
+	ev->active = 0;
 
     return NGX_OK;
 }
 
-//ngx_epoll_add_connection/ngx_epoll_del_connection这两个接口主要是管理监听端口accept以及nginx作为客户端发出的tcp连接
 static ngx_int_t
 ngx_epoll_add_connection(ngx_connection_t *c)
 {
@@ -742,6 +743,9 @@ ngx_epoll_del_connection(ngx_connection_t *c, ngx_uint_t flags)
     int                 op;
     struct epoll_event  ee;
 
+	//这里说的是文件描述符关闭后epoll会自动从监听队列中删除对事件的监听
+	//但是这个地方确有一个隐含的条件，也就是该文件描述符不应该有类似dup2这样的操作
+	//因为这样会使文件引用数大于1导致不会被删除，active=0只能保证唤醒后不再处理事件
     /*
      * when the file descriptor is closed the epoll automatically deletes
      * it from its queue so we do not need to delete explicitly the event

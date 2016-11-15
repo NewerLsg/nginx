@@ -229,7 +229,12 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
         return NULL;
     }
 
-	//在此处初始化NGX_CORE_MODULE
+	//调用核心模块NGX_CORE_MODULE生成配置
+	//每个模块可能需要额外的配置，相应的配置结构分配由create_conf生成
+	//而init_conf一般而言会针对于create_conf生成的结构进行初始化
+	//大部分的模块要么create_conf、init_conf都有
+	//但也有像event_module这样只有init_conf(其实里面就是检测一下在配置文件里面是否有"events"配置项)
+	
     for (i = 0; cycle->modules[i]; i++) {
         if (cycle->modules[i]->type != NGX_CORE_MODULE) {
             continue;
