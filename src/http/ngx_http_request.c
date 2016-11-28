@@ -932,6 +932,8 @@ ngx_http_ssl_servername(ngx_ssl_conn_t *ssl_conn, int *ad, void *arg)
 #endif
 
 
+/* process -> read -> parse*/
+
 static void
 ngx_http_process_request_line(ngx_event_t *rev)
 {
@@ -1919,10 +1921,12 @@ ngx_http_process_request(ngx_http_request_t *r)
 
 #endif
 
+	//读取阶段全部完成
     if (c->read->timer_set) {
         ngx_del_timer(c->read);
     }
 
+	//如有统计，则更新统计
 #if (NGX_STAT_STUB)
     (void) ngx_atomic_fetch_add(ngx_stat_reading, -1);
     r->stat_reading = 0;
@@ -1930,10 +1934,12 @@ ngx_http_process_request(ngx_http_request_t *r)
     r->stat_writing = 1;
 #endif
 
+	//表示从接受请求的阶段进入到处理请求的阶段
     c->read->handler = ngx_http_request_handler;
     c->write->handler = ngx_http_request_handler;
     r->read_event_handler = ngx_http_block_reading;
 
+	//这个里面设置了r->write_event_handler
     ngx_http_handler(r);
 
     ngx_http_run_posted_requests(c);
@@ -2214,6 +2220,7 @@ ngx_http_request_handler(ngx_event_t *ev)
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
                    "http run request: \"%V?%V\"", &r->uri, &r->args);
 
+	//有写事件则表明需要回复请求-一般都设置这个句柄
     if (ev->write) {
         r->write_event_handler(r);
 

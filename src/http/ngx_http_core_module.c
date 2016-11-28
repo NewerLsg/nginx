@@ -793,6 +793,10 @@ ngx_http_handler(ngx_http_request_t *r)
 
     r->connection->log->action = NULL;
 
+	//获取阶段处理句柄
+
+	//internal是指的什么? unclear
+	//对比server_rewrite_index，应该是指是内部请求还是需要被中转的请求
     if (!r->internal) {
         switch (r->headers_in.connection_type) {
         case 0:
@@ -840,6 +844,9 @@ ngx_http_core_run_phases(ngx_http_request_t *r)
 
     ph = cmcf->phase_engine.handlers;
 
+	//r->phase_handler 应该是指处理到那个阶段了
+
+	//每一个阶段都有一个checker，但是有可能是没有handler
     while (ph[r->phase_handler].checker) {
 
         rc = ph[r->phase_handler].checker(r, &ph[r->phase_handler]);

@@ -219,6 +219,8 @@
 #define NGX_MODULE_V1_PADDING  0, 0, 0, 0, 0, 0, 0, 0
 
 
+//所有模块都由ngx_module_s来表示，但是模块也有自己的特征结构
+//这个特征结构由ctx指针来保存。eg.所有的http模块的ctx指针基本指向了ngx_http_module_t类型的结构
 struct ngx_module_s {
     ngx_uint_t            ctx_index;
     ngx_uint_t            index;

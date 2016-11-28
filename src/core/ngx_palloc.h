@@ -53,7 +53,8 @@ typedef struct {
     ngx_uint_t            failed;
 } ngx_pool_data_t;
 
-
+/*两个点处理的比较好:1.大块内存的分配 2.扩容*/
+/*ng的内存池没有回收过程，所以导致整个内存池设计相对简单并不具备一般意义上内存池的参考性*/
 struct ngx_pool_s {
     ngx_pool_data_t       d;
     size_t                max;
