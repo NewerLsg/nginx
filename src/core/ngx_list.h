@@ -12,7 +12,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/*为什么链表节点会存在多个元素? unclear*/
+/*为什么没有删除的接口*/
 typedef struct ngx_list_part_s  ngx_list_part_t;
 
 struct ngx_list_part_s {

@@ -66,10 +66,11 @@ ngx_array_push(ngx_array_t *a)
              * the array allocation is the last in the pool
              * and there is space for new allocation
              */
-
+			/*数组的末尾指针如果是pool的尾指针 && 对应内存池还有多余的空间分配一个新的项给数组*/
             p->d.last += a->size;
             a->nalloc++;
 
+		/*为数组重新分配内存空间*/
         } else {
             /* allocate a new array */
 

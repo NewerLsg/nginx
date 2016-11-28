@@ -156,10 +156,12 @@ ngx_palloc_small(ngx_pool_t *pool, size_t size, ngx_uint_t align)
     do {
         m = p->d.last;
 
+		/*先将last指针对齐*/
         if (align) {
             m = ngx_align_ptr(m, NGX_ALIGNMENT);
         }
 
+		/*剩余内存是否足够*/
         if ((size_t) (p->d.end - m) >= size) {
             p->d.last = m + size;
 
@@ -181,8 +183,10 @@ ngx_palloc_block(ngx_pool_t *pool, size_t size)
     size_t       psize;
     ngx_pool_t  *p, *new;
 
+	/*获取内存池大小*/
     psize = (size_t) (pool->d.end - (u_char *) pool);
 
+	/*新分配一个内存块，并链接到内存池链表中*/
     m = ngx_memalign(NGX_POOL_ALIGNMENT, psize, pool->log);
     if (m == NULL) {
         return NULL;
@@ -224,6 +228,7 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
 
     n = 0;
 
+	/*如果之前有large块被删除，则直接将此内存块关联到large的结构中，最多查找3个*/
     for (large = pool->large; large; large = large->next) {
         if (large->alloc == NULL) {
             large->alloc = p;

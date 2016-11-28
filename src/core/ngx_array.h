@@ -16,8 +16,8 @@
 typedef struct {
     void        *elts;
     ngx_uint_t   nelts;
-    size_t       size;
-    ngx_uint_t   nalloc;
+    size_t       size; //数据项大小
+    ngx_uint_t   nalloc; 
     ngx_pool_t  *pool;
 } ngx_array_t;
 

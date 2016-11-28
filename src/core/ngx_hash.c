@@ -248,6 +248,23 @@ ngx_hash_find_combined(ngx_hash_combined_t *hash, ngx_uint_t key, u_char *name,
 #define NGX_HASH_ELT_SIZE(name)                                               \
     (sizeof(void *) + ngx_align((name)->key.len + 2, sizeof(void *)))
 
+/*
+	哈希表对应的内存结构
+	ngx_hash_elt_t--桶结构，保存桶的指针
+	每个桶直接将指向元素列表中的一个位置,列表是预发布的，也就说，ng只用hash查询，在初始化以后不再更新结构
+	| ngx_hash_wildcard_t |  ngx_hash_elt_t | ngx_hash_elt_t | ... | ngx_hash_elt_t | 
+
+	ngx_hash_elt_t 		ngx_hash_elt_t
+		| 				 |
+		|				 |
+		|			     |
+		|[elt][elt][elt] |[elt][elt][elt]|...|[elt][elt][elt]|
+
+	
+	
+*/
+
+
 ngx_int_t
 ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
 {
@@ -266,6 +283,7 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
     }
 
     for (n = 0; n < nelts; n++) {
+		/*这里是在校验什么 ? 验证key的大小是不是已经超过的桶的大小限制 */
         if (hinit->bucket_size < NGX_HASH_ELT_SIZE(&names[n]) + sizeof(void *))
         {
             ngx_log_error(NGX_LOG_EMERG, hinit->pool->log, 0,
@@ -281,11 +299,13 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
         return NGX_ERROR;
     }
 
+	/*这里是在测试给出多大的桶是合适的*/
+	/*butket_size不是指桶个数而是每个桶最大是多大,以保证在限定桶大小的前提下数据分布是均匀，不存在很大的桶*/
     bucket_size = hinit->bucket_size - sizeof(void *);
-
+	
     start = nelts / (bucket_size / (2 * sizeof(void *)));
     start = start ? start : 1;
-
+	
     if (hinit->max_size > 10000 && nelts && hinit->max_size / nelts < 100) {
         start = hinit->max_size - 1000;
     }
@@ -313,6 +333,7 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
             }
         }
 
+		/*找到合适的桶的数目大小*/
         goto found;
 
     next:
@@ -331,6 +352,7 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
 
 found:
 
+	/*计算每个桶包含元素共占用的空间大小*/
     for (i = 0; i < size; i++) {
         test[i] = sizeof(void *);
     }
@@ -346,6 +368,7 @@ found:
 
     len = 0;
 
+	/*对齐大小并统计所有元素所占内存空间*/
     for (i = 0; i < size; i++) {
         if (test[i] == sizeof(void *)) {
             continue;
@@ -382,7 +405,7 @@ found:
     }
 
     elts = ngx_align_ptr(elts, ngx_cacheline_size);
-
+	
     for (i = 0; i < size; i++) {
         if (test[i] == sizeof(void *)) {
             continue;
