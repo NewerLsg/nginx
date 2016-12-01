@@ -485,6 +485,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 		//每个checker都会调用对应的handler，没有就不调用。
         case NGX_HTTP_SERVER_REWRITE_PHASE:
             if (cmcf->phase_engine.server_rewrite_index == (ngx_uint_t) -1) {
+				/*只能有一个对server的地址重写*/
                 cmcf->phase_engine.server_rewrite_index = n;
             }
             checker = ngx_http_core_rewrite_phase;
@@ -505,6 +506,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
         case NGX_HTTP_REWRITE_PHASE:
             if (cmcf->phase_engine.location_rewrite_index == (ngx_uint_t) -1) {
+				/*同server rewrite*/
                 cmcf->phase_engine.location_rewrite_index = n;
             }
             checker = ngx_http_core_rewrite_phase;
@@ -556,9 +558,16 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
         n += cmcf->phases[i].handlers.nelts;
 
+		/*	以下四个阶段不会允许通过配置来增加处理handler
+			NGX_HTTP_FIND_CONFIG_PHASE
+			NGX_HTTP_POST_REWRITE_PHASE
+			NGX_HTTP_POST_ACCESS_PHASE
+			NGX_HTTP_TRY_FILES_PHASE*/
+
+		/*将配置中注册的阶段对应的handler与phase_engine.handlers关联起来*/
         for (j = cmcf->phases[i].handlers.nelts - 1; j >=0; j--) {
             ph->checker = checker;
-            ph->handler = h[j];
+            ph->handler = h[j]; //h是配置项中该阶段已注册的handler
             ph->next = n;
             ph++;
         }
@@ -712,6 +721,7 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
 
         clcf = lq->exact ? lq->exact : lq->inclusive;
 
+		/*嵌套location处理*/
         if (ngx_http_init_locations(cf, NULL, clcf) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -745,6 +755,7 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
         }
     }
 
+	/*这里的tail节点会随着调用结束而释放，那如何保证队列的完整性?*/
     if (q != ngx_queue_sentinel(locations)) {
         ngx_queue_split(locations, q, &tail);
     }
@@ -856,6 +867,7 @@ ngx_http_add_location(ngx_conf_t *cf, ngx_queue_t **locations,
 {
     ngx_http_location_queue_t  *lq;
 
+	/*没有就分配*/
     if (*locations == NULL) {
         *locations = ngx_palloc(cf->temp_pool,
                                 sizeof(ngx_http_location_queue_t));
@@ -866,11 +878,13 @@ ngx_http_add_location(ngx_conf_t *cf, ngx_queue_t **locations,
         ngx_queue_init(*locations);
     }
 
+	/*分配当前location的节点*/
     lq = ngx_palloc(cf->temp_pool, sizeof(ngx_http_location_queue_t));
     if (lq == NULL) {
         return NGX_ERROR;
     }
 
+	/*这个地方是什么区别?*/
     if (clcf->exact_match
 #if (NGX_PCRE)
         || clcf->regex

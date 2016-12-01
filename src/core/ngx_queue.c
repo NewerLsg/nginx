@@ -59,6 +59,32 @@ ngx_queue_sort(ngx_queue_t *queue,
         return;
     }
 
+	/*
+	可以改成这样么?避免已经有序的进行多余的删除和插入
+	//
+	for(q = ngx_queue_next(q); q != ngx_queue_sentinel(queue); q = next) {
+	   	prev = ngx_queue_prev(q);
+        next = ngx_queue_next(q);
+
+	    do {
+            if (cmp(prev, q) <= 0) {
+                break;
+            }
+
+            prev = ngx_queue_prev(prev);
+
+        } while (prev != ngx_queue_sentinel(queue));
+
+		//update
+       	if( prev !=  ngx_queue_prev(q)) {
+			ngx_queue_remove(q);
+			ngx_queue_insert_after(prev, q);
+       	}
+	}
+
+	*/
+
+
     for (q = ngx_queue_next(q); q != ngx_queue_sentinel(queue); q = next) {
 
         prev = ngx_queue_prev(q);

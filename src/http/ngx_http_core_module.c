@@ -3000,6 +3000,7 @@ ngx_http_core_server(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
 }
 
 
+/*接口仅仅只配置一条记录*/
 static char *
 ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
 {
@@ -3027,6 +3028,7 @@ ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
         return NGX_CONF_ERROR;
     }
 
+	/*遍历所有的http相关模块并，执行设置了create_loc_conf的模块中的句柄*/
     for (i = 0; cf->cycle->modules[i]; i++) {
         if (cf->cycle->modules[i]->type != NGX_HTTP_MODULE) {
             continue;
@@ -3046,6 +3048,8 @@ ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
     clcf = ctx->loc_conf[ngx_http_core_module.ctx_index];
     clcf->loc_conf = ctx->loc_conf;
 
+
+	/*value[0]是location么? unclear*/
     value = cf->args->elts;
 
     if (cf->args->nelts == 3) {
@@ -3054,6 +3058,11 @@ ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
         mod = value[1].data;
         name = &value[2];
 
+		/*location有3种匹配模式
+			1.精确匹配， 对应符号'='
+			2.模糊匹配， 大小写敏感 对应符号'~'
+			3.模糊匹配， 大小写不敏感，对应符号'~*'
+		*/
         if (len == 1 && mod[0] == '=') {
 
             clcf->name = *name;
@@ -3064,13 +3073,13 @@ ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
             clcf->name = *name;
             clcf->noregex = 1;
 
-        } else if (len == 1 && mod[0] == '~') {
+        } else if (len == 1 && mod[0] == '~') { //大小写敏感
 
             if (ngx_http_core_regex_location(cf, clcf, name, 0) != NGX_OK) {
                 return NGX_CONF_ERROR;
             }
 
-        } else if (len == 2 && mod[0] == '~' && mod[1] == '*') {
+        } else if (len == 2 && mod[0] == '~' && mod[1] == '*') { //大小写敏感
 
             if (ngx_http_core_regex_location(cf, clcf, name, 1) != NGX_OK) {
                 return NGX_CONF_ERROR;
@@ -3119,7 +3128,7 @@ ngx_http_core_location(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
             }
 
         } else {
-
+			/* location @loca -- 有名定位*/
             clcf->name = *name;
 
             if (name->data[0] == '@') {
@@ -3967,6 +3976,8 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
 
 #if (NGX_HAVE_SETFIB)
+		/*setfib选项与路由表相关，对于多网卡来说会有多个网络*/
+		/*所有在调用setfib之后的打开的sock将与setfib中设定的值对应的路由表信息关联*/
         if (ngx_strncmp(value[n].data, "setfib=", 7) == 0) {
             lsopt.setfib = ngx_atoi(value[n].data + 7, value[n].len - 7);
             lsopt.set = 1;
@@ -3983,6 +3994,7 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 #endif
 
 #if (NGX_HAVE_TCP_FASTOPEN)
+		/*linux下实现的快速建立tcp链接的技术，原理有cookie差不多，主要保留之前的链接状态省去握手过程直接发送数据*/
         if (ngx_strncmp(value[n].data, "fastopen=", 9) == 0) {
             lsopt.fastopen = ngx_atoi(value[n].data + 9, value[n].len - 9);
             lsopt.set = 1;
@@ -3997,7 +4009,7 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             continue;
         }
 #endif
-
+		/*accept的缓存队列长度*/
         if (ngx_strncmp(value[n].data, "backlog=", 8) == 0) {
             lsopt.backlog = ngx_atoi(value[n].data + 8, value[n].len - 8);
             lsopt.set = 1;
@@ -4060,6 +4072,7 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             continue;
         }
 
+		/*完成三次握手还需要等到发送数据才算是可用的TCP链接*/
         if (ngx_strcmp(value[n].data, "deferred") == 0) {
 #if (NGX_HAVE_DEFERRED_ACCEPT && defined TCP_DEFER_ACCEPT)
             lsopt.deferred_accept = 1;
@@ -4149,6 +4162,9 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 #endif
         }
 
+		/*这个是什么作用? spdy是google开发的一个协议，意在优化http
+			主要是复用TCP连接和减少或压缩交互数据
+		*/
         if (ngx_strcmp(value[n].data, "spdy") == 0) {
             ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
                                "invalid parameter \"spdy\": "
@@ -4157,6 +4173,7 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             continue;
         }
 
+		
         if (ngx_strncmp(value[n].data, "so_keepalive=", 13) == 0) {
 
             if (ngx_strcmp(&value[n].data[13], "on") == 0) {
@@ -4258,6 +4275,7 @@ ngx_http_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
+	/*把该监听端口加入到全局的监听端口队列中*/
     if (ngx_http_add_listen(cf, cscf, &lsopt) == NGX_OK) {
         return NGX_CONF_OK;
     }
@@ -4282,6 +4300,10 @@ ngx_http_core_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         ch = value[i].data[0];
 
+		/*简单的验证:
+		1.[*.]和[.]中的[.]必须后接字符
+		2.server那么中不能出现 '/'
+		*/
         if ((ch == '*' && (value[i].len < 3 || value[i].data[1] != '.'))
             || (ch == '.' && value[i].len < 2))
         {
@@ -4313,6 +4335,7 @@ ngx_http_core_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             sn->name = value[i];
         }
 
+		/*'~':大小写不敏感 '~*':敏感*/
         if (value[i].data[0] != '~') {
             ngx_strlow(sn->name.data, sn->name.data, sn->name.len);
             continue;
