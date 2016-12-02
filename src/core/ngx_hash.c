@@ -747,15 +747,22 @@ ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
 
     if (flags & NGX_HASH_WILDCARD_KEY) {
 
-        /*
+        /*  
          * supported wildcards:
          *     "*.example.com", ".example.com", and "www.example.*"
+         	'*'只能出现在头(或者缺省)、尾
          */
 
         n = 0;
 
+		/*
+		   	规则验证(这里没有为什么,作者设计的只支持上面的几种形式的模糊匹配):
+         	1.不能出现2个'*'
+         	2.不能出现连续两个'.'
+         	3.不能出现结束'\0'
+        */	
+        
         for (i = 0; i < key->len; i++) {
-
             if (key->data[i] == '*') {
                 if (++n > 1) {
                     return NGX_DECLINED;
@@ -771,21 +778,24 @@ ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
             }
         }
 
+		/*出现上面三种形式的模糊模式*/
+		/* 在头部缺省 '*' */
         if (key->len > 1 && key->data[0] == '.') {
             skip = 1;
             goto wildcard;
         }
 
         if (key->len > 2) {
-
+			/* 头部带 '*' */
             if (key->data[0] == '*' && key->data[1] == '.') {
                 skip = 2;
                 goto wildcard;
             }
 
+			/* 尾部带 '*' */
             if (key->data[i - 2] == '.' && key->data[i - 1] == '*') {
                 skip = 0;
-                last -= 2;
+                last -= 2; /*修正key长度*/
                 goto wildcard;
             }
         }
@@ -812,7 +822,7 @@ ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key, void *value,
 
     name = ha->keys_hash[k].elts;
 
-    if (name) {
+    if (name) { /*查找是否存在当前key*/
         for (i = 0; i < ha->keys_hash[k].nelts; i++) {
             if (last != name[i].len) {
                 continue;

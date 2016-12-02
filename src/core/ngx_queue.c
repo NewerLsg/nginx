@@ -26,7 +26,11 @@ ngx_queue_middle(ngx_queue_t *queue)
     }
 
     next = ngx_queue_head(queue);
-
+	
+    /*
+    	利用next指针两倍于middle前进的速到来查找队列中间的元素
+		对比与先计算长度然后迭代到指定位置而言，没有减少遍历的次数，只是降低了实现的复杂度
+	*/
     for ( ;; ) {
         middle = ngx_queue_next(middle);
 

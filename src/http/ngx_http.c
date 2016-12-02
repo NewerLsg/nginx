@@ -755,7 +755,7 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
         }
     }
 
-	/*这里的tail节点会随着调用结束而释放，那如何保证队列的完整性?*/
+	/*这里的tail节点会随着调用结束而释放，那如何保证队列的完整性? unclear*/
     if (q != ngx_queue_sentinel(locations)) {
         ngx_queue_split(locations, q, &tail);
     }
@@ -815,6 +815,9 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
 }
 
 
+/*
+	对于location的查找是nginx对http请求必经路径，对于核心路径的优化将提升处理速度
+*/
 static ngx_int_t
 ngx_http_init_static_location_trees(ngx_conf_t *cf,
     ngx_http_core_loc_conf_t *pclcf)
@@ -846,12 +849,18 @@ ngx_http_init_static_location_trees(ngx_conf_t *cf,
         }
     }
 
+	/*
+		1.检测重复location
+		2.合并inclusive类型和exact类型的同名location，合并后的类型由inclusive类型的location决定
+	*/
     if (ngx_http_join_exact_locations(cf, locations) != NGX_OK) {
         return NGX_ERROR;
     }
 
+	/*递归过程主要是针对于前缀有重叠的location*/
     ngx_http_create_locations_list(locations, ngx_queue_head(locations));
 
+	/*递归过程主要是针对于前缀没有重叠的location*/
     pclcf->static_locations = ngx_http_create_locations_tree(cf, locations, 0);
     if (pclcf->static_locations == NULL) {
         return NGX_ERROR;
@@ -1039,6 +1048,7 @@ ngx_http_create_locations_list(ngx_queue_t *locations, ngx_queue_t *q)
 
     lq = (ngx_http_location_queue_t *) q;
 
+	/*递归入口条件*/
     if (lq->inclusive == NULL) {
         ngx_http_create_locations_list(locations, ngx_queue_next(q));
         return;
@@ -1047,12 +1057,17 @@ ngx_http_create_locations_list(ngx_queue_t *locations, ngx_queue_t *q)
     len = lq->name->len;
     name = lq->name->data;
 
+	/*所有的location按字典序排序好，找出与inclusive不匹配的第一个串*/
     for (x = ngx_queue_next(q);
          x != ngx_queue_sentinel(locations);
          x = ngx_queue_next(x))
     {
         lx = (ngx_http_location_queue_t *) x;
 
+		/*
+			1.长度没有inclusive长；
+			2.前缀与inclusive不一样,对比长度是以inclusive为准
+		*/
         if (len > lx->name->len
             || ngx_filename_cmp(name, lx->name->data, len) != 0)
         {
@@ -1062,11 +1077,23 @@ ngx_http_create_locations_list(ngx_queue_t *locations, ngx_queue_t *q)
 
     q = ngx_queue_next(q);
 
+	/*当前为inclusive,但是后续没有可以形成树的节点*/
     if (q == x) {
         ngx_http_create_locations_list(locations, x);
         return;
     }
 
+	/*  此时队列如下
+		| lq | q |... |  | x | ... |
+
+		经过
+		    ngx_queue_split(locations, q, &tail);
+   	 		ngx_queue_add(&lq->list, &tail);
+		转换后
+		| lq | 
+			 (list)-> | q |... |  | x | ... |
+	*/
+	
     ngx_queue_split(locations, q, &tail);
     ngx_queue_add(&lq->list, &tail);
 
@@ -1075,11 +1102,24 @@ ngx_http_create_locations_list(ngx_queue_t *locations, ngx_queue_t *q)
         return;
     }
 
+	/*  此时队列如下
+		| lq | 
+			 (list)-> | q |... |  | x | ... |
+		经过
+			ngx_queue_split(&lq->list, x, &tail);
+			ngx_queue_add(locations, &tail);
+		转换后
+		| lq | x | ... |
+			 (list)-> | q |... |  
+		
+	*/
     ngx_queue_split(&lq->list, x, &tail);
     ngx_queue_add(locations, &tail);
 
+	/*对子串list进行处理*/
     ngx_http_create_locations_list(&lq->list, ngx_queue_head(&lq->list));
 
+	/*对x进行处理*/
     ngx_http_create_locations_list(locations, x);
 }
 
@@ -1098,11 +1138,22 @@ ngx_http_create_locations_tree(ngx_conf_t *cf, ngx_queue_t *locations,
     ngx_http_location_queue_t      *lq;
     ngx_http_location_tree_node_t  *node;
 
+	/*
+		为什么要找到中间节点? unclear
+		经过ngx_http_create_locations_list的整理，除了最外层的location依旧是队列的形式进行组织的以外，
+		其他的都形成了小规模的树结构，这里需要在最外的的location也利用树组织起来，这样就可以通过
+		二分查找来遍历不同的location(前缀完全没有重叠的最外层location)
+	*/
     q = ngx_queue_middle(locations);
 
     lq = (ngx_http_location_queue_t *) q;
     len = lq->name->len - prefix;
 
+	/*
+		注意ngx_http_location_tree_node_t 中name在结构中其实是被当成了一个指针,
+		这个技巧使用方式是分配额外的空间给结构，把结构的最后一个当成指针来访问那段额外的空间
+	*/
+	
     node = ngx_palloc(cf->pool,
                       offsetof(ngx_http_location_tree_node_t, name) + len);
     if (node == NULL) {
@@ -1152,7 +1203,7 @@ inclusive:
     if (ngx_queue_empty(&lq->list)) {
         return node;
     }
-
+	
     node->tree = ngx_http_create_locations_tree(cf, &lq->list, prefix + len);
     if (node->tree == NULL) {
         return NULL;
